@@ -1,3 +1,5 @@
+FROM node:22 as node
+
 FROM php:8.4-apache
 
 RUN apt-get update -y && apt-get install -y \
@@ -14,12 +16,16 @@ RUN apt-get update -y && apt-get install -y \
     git \
     cron \
     inetutils-ping \
-    && curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin/ --filename=composer \
     && docker-php-ext-install pdo pdo_pgsql pdo_mysql zip gd exif \
-    && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
-    && apt-get install -y nodejs \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
+
+COPY --from=node /usr/local/bin/ /usr/local/bin/
+COPY --from=node /usr/local/lib/ /usr/local/lib/
+COPY --from=node /usr/local/include/ /usr/local/include/
+COPY --from=node /opt/ /opt/
+
+RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin/ --filename=composer
 
 COPY httpd-vhosts.conf /etc/apache2/sites-available/000-default.conf
 RUN a2enmod rewrite
@@ -39,14 +45,13 @@ RUN npm ci
 
 COPY . .
 
-RUN ls -la node_modules/.bin/ && \
-    npm run build \
+RUN npm run build \
     && npm prune --production \
     && npm cache clean --force
 
 RUN chown -R www-data:www-data /var/www/html
 
-ENV DB_HOST=competitor_db
 ENV APP_ENV=production
+ENV DB_HOST=competitor_db
 
 ENTRYPOINT ["/usr/sbin/apache2ctl", "-D", "FOREGROUND"]
