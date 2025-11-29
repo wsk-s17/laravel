@@ -52,6 +52,6 @@ RUN npm run build \
 RUN chown -R www-data:www-data /var/www/html
 
 ENV APP_ENV=production
-ENV DB_HOST=competitor_db
+ENV DB_HOST=competitor-db
 
 ENTRYPOINT ["/usr/sbin/apache2ctl", "-D", "FOREGROUND"]
