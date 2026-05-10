@@ -1,0 +1,31 @@
+name: Docker Image CI
+
+on:
+  push:
+    branches: ['main']
+  pull_request:
+    branches: ['main']
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Build the Docker image
+        run: docker build . --tag git.infra.wsk17.dev/${{ github.repository }}:latest
+
+      - name: Docker login
+        run: echo "${{ secrets.PASS }}" | docker login git.infra.wsk17.dev -u ${{ secrets.USER }} --password-stdin
+
+      - name: Push to registry
+        run: docker push git.infra.wsk17.dev/${{ github.repository }}:latest
+
+      - name: Trigger deployment
+        run: |
+          docker run --rm \
+            --network gitea_gitea_frontend \
+            node:20-bullseye \
+            curl -sSf -X POST \
+              -H "Authorization: Bearer ${{ secrets.UPDATER_TOKEN }}" \
+              "http://updater:9000/pull?image=git.infra.wsk17.dev/${{ github.repository }}:latest"
