@@ -1,0 +1,48 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  REGISTRY: git.infra.wsk17.dev
+  IMAGE: git.infra.wsk17.dev/${{ github.repository }}:latest
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm ci --replace-registry-host=always
+
+      - name: Build
+        run: npm run build
+
+      - name: Log in to the registry
+        env:
+          REG_USER: ${{ secrets.USER }}
+          REG_PASS: ${{ secrets.PASS }}
+        run: echo "$REG_PASS" | docker login "$REGISTRY" -u "$REG_USER" --password-stdin
+
+      - name: Build image
+        run: docker build -t "$IMAGE" .
+
+      - name: Push image
+        run: docker push "$IMAGE"
+
+      - name: Trigger deployment
+        env:
+          UPDATER_TOKEN: ${{ secrets.UPDATER_TOKEN }}
+        run: |
+          curl -sS --fail-with-body -X POST \
+            -H "Authorization: Bearer $UPDATER_TOKEN" \
+            "http://updater:9000/pull?image=$IMAGE"
